@@ -1,0 +1,8 @@
+# Ignore virtual environments
+env/
+venv/
+
+# Ignore build output
+_skbuild/
+fmf2.egg-info/
+__pycache__/
