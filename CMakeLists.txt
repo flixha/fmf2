@@ -18,6 +18,9 @@ find_package(Cython REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Development NumPy)
 find_package(PythonExtensions REQUIRED)
 
+# Add OpenMP support if found
+find_package(OpenMP)
+
 # Mark the SYCL backend as optional
 find_package(hipSYCL CONFIG)
 

@@ -8,8 +8,11 @@ list(APPEND FMF2_LIBS serial)
 # If we have OpenMP support in the compiler we add ensure our "serial" code is
 # compiled with OpenMP support
 if(OpenMP_CXX_FOUND)
+	message("Compiling with OpenMP")
 	target_compile_options(serial PRIVATE ${OpenMP_CXX_FLAGS})
 	target_link_libraries(serial ${OpenMP_CXX_LIBRARIES})
+else()
+	message(WARN "Did not find OpenMP!")
 endif()
 
 # Add SYCL backend if available compiler is found

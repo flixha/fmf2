@@ -32,6 +32,7 @@ int matched_filter_serial(const float* templates, const float* sum_square_templa
 						       / static_cast<float>(step)) * step);
         const int stop_i = 1 + (n_samples_data - n_samples_template - max_moveout);
 
+	#pragma omp parallel for schedule(static)
 	for (int i = start_i; i < stop_i; i += step) {
 	    const auto cc_sum_i_offset = i / step;
 	    cc_sum[cc_sum_offset + cc_sum_i_offset] =

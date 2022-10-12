@@ -11,7 +11,7 @@ setup(
     python_requires=">=3.7",
     install_requires=['numpy'],
     extras_require={
-        'tests': ['pytest'],
+        'tests': ['pytest', 'pytest-benchmark'],
     },
 
 )

@@ -12,10 +12,10 @@ created by the `fast_matched_filter`'s `precise` implementation (stored as
 `cc_ref`)
 """
 
-import pytest
-import numpy as np
 import fmf2
+import numpy as np
 import pathlib
+import pytest
 
 
 @pytest.fixture
@@ -24,6 +24,7 @@ def geonet_data():
     fil = pathlib.Path(__file__).parent / "data/geonet.npz"
     data = np.load(fil)
     return data
+
 
 @pytest.mark.parametrize('impl', ['precise', 'sycl'])
 def test_geonet(geonet_data, impl):
@@ -37,3 +38,14 @@ def test_geonet(geonet_data, impl):
     result = fmf2.matched_filter(templates, moveouts, weights, data, step=1, arch=impl, normalize=normalize)
     assert np.allclose(result, geonet_data['cc_sums'], atol=1e-5)
     assert np.allclose(result, geonet_data['cc_ref'], atol=1e-5)
+
+
+@pytest.mark.benchmark(group="geonet")
+def test_cpu(geonet_data, benchmark):
+    templates = geonet_data['templates']
+    weights = geonet_data['weights']
+    moveouts = geonet_data['moveouts']
+    data = geonet_data['data']
+    normalize = 'full'
+    benchmark(fmf2.matched_filter, templates, moveouts, weights, data, step=1,
+              arch='precise', normalize=normalize)
