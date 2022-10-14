@@ -3,16 +3,16 @@ include_directories(${Python3_NumPy_INCLUDE_DIRS} SYSTEM)
 
 # Include the "serial" implementation which should always be available
 add_library(serial src/serial.cpp)
+# AVX2 should always be available as it is quite old and most all modern x86_64
+# CPUs support it
+target_compile_options(serial PUBLIC "-mavx2" "-mfma")
 list(APPEND FMF2_LIBS serial)
 
 # If we have OpenMP support in the compiler we add ensure our "serial" code is
 # compiled with OpenMP support
 if(OpenMP_CXX_FOUND)
-	message("Compiling with OpenMP")
 	target_compile_options(serial PRIVATE ${OpenMP_CXX_FLAGS})
 	target_link_libraries(serial ${OpenMP_CXX_LIBRARIES})
-else()
-	message(WARN "Did not find OpenMP!")
 endif()
 
 # Add SYCL backend if available compiler is found

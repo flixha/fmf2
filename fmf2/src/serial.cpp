@@ -1,11 +1,19 @@
 #include "fmf2.hpp"
 
 #include <cmath>
+#include <immintrin.h>
 
 #define STABILITY_THRESHOLD 0.000001f
 
 // Calculate the network correlation for a single template against one sample of data
 float network_correlation(const float* temp, const float* sum_sq_template,
+			  const int* template_moveouts, const float* template_weights,
+			  const float* data, const int n_samples_template,
+			  const int n_samples_data, const int n_stations, const int n_components,
+			  const int normalize);
+
+// Manually optimized AVX2 version of the above
+float network_correlation_avx2(const float* temp, const float* sum_sq_template,
 			  const int* template_moveouts, const float* template_weights,
 			  const float* data, const int n_samples_template,
 			  const int n_samples_data, const int n_stations, const int n_components,
@@ -35,18 +43,33 @@ int matched_filter_serial(const float* templates, const float* sum_square_templa
 	#pragma omp parallel for schedule(static)
 	for (int i = start_i; i < stop_i; i += step) {
 	    const auto cc_sum_i_offset = i / step;
-	    cc_sum[cc_sum_offset + cc_sum_i_offset] =
-		network_correlation(
-		    templates + network_offset * n_samples_template,
-		    sum_square_templates + network_offset,
-		    moveouts + network_offset,
-		    weights + network_offset,
-		    data + i,
-		    n_samples_template,
-		    n_samples_data,
-		    n_stations,
-		    n_components,
-		    normalize);
+	    if (__builtin_cpu_supports("avx2")) {
+		cc_sum[cc_sum_offset + cc_sum_i_offset] =
+		    network_correlation_avx2(
+			templates + network_offset * n_samples_template,
+			sum_square_templates + network_offset,
+			moveouts + network_offset,
+			weights + network_offset,
+			data + i,
+			n_samples_template,
+			n_samples_data,
+			n_stations,
+			n_components,
+			normalize);
+	    } else {
+		cc_sum[cc_sum_offset + cc_sum_i_offset] =
+		    network_correlation(
+			templates + network_offset * n_samples_template,
+			sum_square_templates + network_offset,
+			moveouts + network_offset,
+			weights + network_offset,
+			data + i,
+			n_samples_template,
+			n_samples_data,
+			n_stations,
+			n_components,
+			normalize);
+	    }
 	}
     }
     return 0;
@@ -83,6 +106,99 @@ float network_correlation(const float* temp, const float* sum_sq_template,
 	    const float denominator = std::sqrt(sum_sq_template[comp_offset] * sum_square);
 	    if (denominator > STABILITY_THRESHOLD) {
 		cc_sum = std::fma((numerator / denominator), template_weights[comp_offset], cc_sum);
+	    }
+	}
+    }
+    return cc_sum;
+}
+
+// Horizontal sum of a vector register
+// https://stackoverflow.com/a/13222410
+static float sum8(__m256 x) {
+    // hiQuad = ( x7, x6, x5, x4 )
+    const __m128 hiQuad = _mm256_extractf128_ps(x, 1);
+    // loQuad = ( x3, x2, x1, x0 )
+    const __m128 loQuad = _mm256_castps256_ps128(x);
+    // sumQuad = ( x3 + x7, x2 + x6, x1 + x5, x0 + x4 )
+    const __m128 sumQuad = _mm_add_ps(loQuad, hiQuad);
+    // loDual = ( -, -, x1 + x5, x0 + x4 )
+    const __m128 loDual = sumQuad;
+    // hiDual = ( -, -, x3 + x7, x2 + x6 )
+    const __m128 hiDual = _mm_movehl_ps(sumQuad, sumQuad);
+    // sumDual = ( -, -, x1 + x3 + x5 + x7, x0 + x2 + x4 + x6 )
+    const __m128 sumDual = _mm_add_ps(loDual, hiDual);
+    // lo = ( -, -, -, x0 + x2 + x4 + x6 )
+    const __m128 lo = sumDual;
+    // hi = ( -, -, -, x1 + x3 + x5 + x7 )
+    const __m128 hi = _mm_shuffle_ps(sumDual, sumDual, 0x1);
+    // sum = ( -, -, -, x0 + x1 + x2 + x3 + x4 + x5 + x6 + x7 )
+    const __m128 sum = _mm_add_ss(lo, hi);
+    return _mm_cvtss_f32(sum);
+}
+
+float network_correlation_avx2(const float* temp, const float* sum_sq_template,
+			  const int* template_moveouts, const float* template_weights,
+			  const float* data, const int n_samples_template,
+			  const int n_samples_data, const int n_stations, const int n_components,
+			  const int normalize) {
+    float cc_sum = 0.0f;
+    const auto left = n_samples_template % 8;
+    const int offset = n_samples_template - left;
+    const __m256i mask = _mm256_set_epi32(
+	    (offset + 0 < n_samples_template) ? 0 : -1,
+	    (offset + 1 < n_samples_template) ? 0 : -1,
+	    (offset + 2 < n_samples_template) ? 0 : -1,
+	    (offset + 3 < n_samples_template) ? 0 : -1,
+	    (offset + 4 < n_samples_template) ? 0 : -1,
+	    (offset + 5 < n_samples_template) ? 0 : -1,
+	    (offset + 6 < n_samples_template) ? 0 : -1,
+	    (offset + 7 < n_samples_template) ? 0 : -1);
+    for (int station = 0; station < n_stations; station++) {
+	for (int comp = 0; comp < n_components; comp++) {
+	    const int comp_offset = station * n_components + comp;
+	    const int temp_offset = comp_offset * n_samples_template;
+	    const int data_offset = comp_offset * n_samples_data + template_moveouts[comp_offset];
+
+	    __m256 mean = _mm256_setzero_ps();
+	    __m256 numerator = _mm256_setzero_ps();
+	    __m256 sum_square = _mm256_setzero_ps();
+	    float mean_sum = 0;
+
+	    if (normalize) {
+		for (int i = 0; (i + 8) < n_samples_template; i+=8) {
+		    mean += _mm256_loadu_ps(&data[data_offset + i]);
+		}
+		if (left != 0) {
+		    mean += _mm256_maskload_ps(&data[data_offset + offset], mask);
+		}
+		mean_sum = sum8(mean) / static_cast<float>(n_samples_template);
+		mean = _mm256_set1_ps(mean_sum);
+	    }
+	    for (int i = 0; (i + 8) < n_samples_template; i+=8) {
+		const __m256 sample = _mm256_loadu_ps(&data[data_offset + i]) - mean;
+		const __m256 templ = _mm256_loadu_ps(&temp[temp_offset + i]);
+		numerator = _mm256_fmadd_ps(templ, sample, numerator);
+		sum_square = _mm256_fmadd_ps(sample, sample, sum_square);
+	    }
+	    if (left != 0) {
+		mean = _mm256_set_ps(
+			(offset + 0 < n_samples_template) ? 0.f : mean_sum,
+			(offset + 1 < n_samples_template) ? 0.f : mean_sum,
+			(offset + 2 < n_samples_template) ? 0.f : mean_sum,
+			(offset + 3 < n_samples_template) ? 0.f : mean_sum,
+			(offset + 4 < n_samples_template) ? 0.f : mean_sum,
+			(offset + 5 < n_samples_template) ? 0.f : mean_sum,
+			(offset + 6 < n_samples_template) ? 0.f : mean_sum,
+			(offset + 7 < n_samples_template) ? 0.f : mean_sum);
+		const __m256 sample = _mm256_maskload_ps(&data[data_offset + offset], mask) - mean;
+		const __m256 templ = _mm256_maskload_ps(&temp[temp_offset + offset], mask);
+		numerator = _mm256_fmadd_ps(templ, sample, numerator);
+		sum_square = _mm256_fmadd_ps(sample, sample, sum_square);
+	    }
+	    const float denominator = std::sqrt(sum_sq_template[comp_offset] * sum8(sum_square));
+	    if (denominator > STABILITY_THRESHOLD) {
+		const float numer = sum8(numerator);
+		cc_sum = std::fma((numer / denominator), template_weights[comp_offset], cc_sum);
 	    }
 	}
     }

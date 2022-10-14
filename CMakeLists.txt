@@ -14,6 +14,11 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# Add Cython debug if in debug mode
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(CYTHON_FLAGS "${CYTHON_FLAGS} --gdb")
+endif()
+
 find_package(Cython REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Development NumPy)
 find_package(PythonExtensions REQUIRED)
