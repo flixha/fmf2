@@ -19,6 +19,12 @@ float network_correlation_avx2(const float* temp, const float* sum_sq_template,
 			  const int n_samples_data, const int n_stations, const int n_components,
 			  const int normalize);
 
+float network_correlation_avx512(const float* temp, const float* sum_sq_template,
+			  const int* template_moveouts, const float* template_weights,
+			  const float* data, const int n_samples_template,
+			  const int n_samples_data, const int n_stations, const int n_components,
+			  const int normalize);
+
 int matched_filter_serial(const float* templates, const float* sum_square_templates, const int* moveouts, const float* data,
 			  const float* weights, const int step, const int n_samples_template,
 			  const int n_samples_data, const int n_templates,
@@ -43,7 +49,24 @@ int matched_filter_serial(const float* templates, const float* sum_square_templa
 	#pragma omp parallel for schedule(static)
 	for (int i = start_i; i < stop_i; i += step) {
 	    const auto cc_sum_i_offset = i / step;
-	    if (__builtin_cpu_supports("avx2")) {
+#ifdef __AVX512F__
+	    if (__builtin_cpu_supports("avx512f")) {
+		cc_sum[cc_sum_offset + cc_sum_i_offset] =
+		    network_correlation_avx512(
+			templates + network_offset * n_samples_template,
+			sum_square_templates + network_offset,
+			moveouts + network_offset,
+			weights + network_offset,
+			data + i,
+			n_samples_template,
+			n_samples_data,
+			n_stations,
+			n_components,
+			normalize);
+		continue;
+	    }
+#endif
+	    if (__builtin_cpu_supports("avx2") && __builtin_cpu_supports("fma")) {
 		cc_sum[cc_sum_offset + cc_sum_i_offset] =
 		    network_correlation_avx2(
 			templates + network_offset * n_samples_template,
@@ -142,6 +165,7 @@ float network_correlation_avx2(const float* temp, const float* sum_sq_template,
 			  const int n_samples_data, const int n_stations, const int n_components,
 			  const int normalize) {
     float cc_sum = 0.0f;
+#ifdef __AVX2__
     const auto left = n_samples_template % 8;
     const int offset = n_samples_template - left;
     const __m256i mask = _mm256_set_epi32(
@@ -202,5 +226,64 @@ float network_correlation_avx2(const float* temp, const float* sum_sq_template,
 	    }
 	}
     }
+#endif // __AVX2__
+    return cc_sum;
+}
+
+float network_correlation_avx512(const float* temp, const float* sum_sq_template,
+			  const int* template_moveouts, const float* template_weights,
+			  const float* data, const int n_samples_template,
+			  const int n_samples_data, const int n_stations, const int n_components,
+			  const int normalize) {
+    float cc_sum = 0.0f;
+#ifdef __AVX512F__
+    const auto left = n_samples_template % 16;
+    const int offset = n_samples_template - left;
+    __mmask16 mask = 0;
+    for (size_t i = 0; i < 16; i++) {
+	mask |= (offset + i < n_samples_template) ? (1 << i) : 0;
+    }
+    for (int station = 0; station < n_stations; station++) {
+	for (int comp = 0; comp < n_components; comp++) {
+	    const int comp_offset = station * n_components + comp;
+	    const int temp_offset = comp_offset * n_samples_template;
+	    const int data_offset = comp_offset * n_samples_data + template_moveouts[comp_offset];
+
+	    __m512 mean = _mm512_setzero_ps();
+	    __m512 numerator = _mm512_setzero_ps();
+	    __m512 sum_square = _mm512_setzero_ps();
+	    float mean_sum = 0;
+
+	    if (normalize) {
+		for (int i = 0; (i + 16) < n_samples_template; i+=16) {
+		    mean += _mm512_loadu_ps(&data[data_offset + i]);
+		}
+		if (left != 0) {
+		    mean += _mm512_maskz_loadu_ps(mask, &data[data_offset + offset]);
+		}
+		mean_sum = _mm512_reduce_add_ps(mean) / static_cast<float>(n_samples_template);
+		mean = _mm512_set1_ps(mean_sum);
+	    }
+	    for (int i = 0; (i + 16) < n_samples_template; i+=16) {
+		const __m512 sample = _mm512_loadu_ps(&data[data_offset + i]) - mean;
+		const __m512 templ = _mm512_loadu_ps(&temp[temp_offset + i]);
+		numerator = _mm512_fmadd_ps(templ, sample, numerator);
+		sum_square = _mm512_fmadd_ps(sample, sample, sum_square);
+	    }
+	    if (left != 0) {
+		const __m512 sample = _mm512_maskz_sub_ps(mask,
+			_mm512_maskz_loadu_ps(mask, &data[data_offset + offset]), mean);
+		const __m512 templ = _mm512_maskz_loadu_ps(mask, &temp[temp_offset + offset]);
+		numerator = _mm512_fmadd_ps(templ, sample, numerator);
+		sum_square = _mm512_fmadd_ps(sample, sample, sum_square);
+	    }
+	    const float denominator = std::sqrt(sum_sq_template[comp_offset] * _mm512_reduce_add_ps(sum_square));
+	    if (denominator > STABILITY_THRESHOLD) {
+		const float numer = _mm512_reduce_add_ps(numerator);
+		cc_sum = std::fma((numer / denominator), template_weights[comp_offset], cc_sum);
+	    }
+	}
+    }
+#endif // __AVX512F__
     return cc_sum;
 }

@@ -5,7 +5,11 @@ include_directories(${Python3_NumPy_INCLUDE_DIRS} SYSTEM)
 add_library(serial src/serial.cpp)
 # AVX2 should always be available as it is quite old and most all modern x86_64
 # CPUs support it
-target_compile_options(serial PUBLIC "-mavx2" "-mfma")
+target_compile_options(serial PRIVATE "-mavx2" "-mfma")
+if(FMF2_AVX512)
+	target_compile_options(serial PRIVATE "-mavx512f")
+	message(STATUS "Enabling AVX512")
+endif()
 list(APPEND FMF2_LIBS serial)
 
 # If we have OpenMP support in the compiler we add ensure our "serial" code is
