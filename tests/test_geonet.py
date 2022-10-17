@@ -41,11 +41,14 @@ def test_geonet(geonet_data, impl):
 
 
 @pytest.mark.benchmark(group="geonet")
-def test_cpu(geonet_data, benchmark):
+@pytest.mark.parametrize('impl', ['precise', 'sycl'])
+def test_bench(geonet_data, impl, benchmark):
+    if impl not in fmf2.AVAILABLE_BACKENDS:
+        pytest.skip("Not compiled with backed: %s, available: %s" % (impl, fmf2.AVAILABLE_BACKENDS))
     templates = geonet_data['templates']
     weights = geonet_data['weights']
     moveouts = geonet_data['moveouts']
     data = geonet_data['data']
     normalize = 'full'
     benchmark(fmf2.matched_filter, templates, moveouts, weights, data, step=1,
-              arch='precise', normalize=normalize)
+              arch=impl, normalize=normalize)

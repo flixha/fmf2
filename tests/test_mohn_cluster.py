@@ -28,11 +28,14 @@ def mohn_data():
 
 @pytest.mark.slow
 @pytest.mark.benchmark(group='mohn_cluster')
-def test_cpu(mohn_data, benchmark):
+@pytest.mark.parametrize('impl', ['precise', 'sycl'])
+def test_bench(mohn_data, impl, benchmark):
+    if impl not in fmf2.AVAILABLE_BACKENDS:
+        pytest.skip("Not compiled with backed: %s, available: %s" % (impl, fmf2.AVAILABLE_BACKENDS))
     templates = mohn_data['templates']
     weights = mohn_data['weights']
     moveouts = mohn_data['moveouts']
     data = mohn_data['data']
     normalize = 'full'
     benchmark(fmf2.matched_filter, templates, moveouts, weights, data, step=1,
-              arch='precise', normalize=normalize)
+              arch=impl, normalize=normalize)
