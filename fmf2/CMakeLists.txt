@@ -1,6 +1,9 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${Python3_NumPy_INCLUDE_DIRS} SYSTEM)
 
+# Add NumPy to required libraries to link against
+list(APPEND FMF2_LIBS Python3::NumPy)
+
 # Include the "serial" implementation which should always be available
 add_library(serial src/serial.cpp)
 # AVX2 should always be available as it is quite old and most all modern x86_64
@@ -35,7 +38,7 @@ endif()
 add_cython_target(_fmf2 CXX PY3)
 add_library(_fmf2 MODULE ${_fmf2})
 # Link against internal libraries
-target_link_libraries(_fmf2 ${FMF2_LIBS} Python3::NumPy)
+target_link_libraries(_fmf2 ${FMF2_LIBS})
 python_extension_module(_fmf2)
 
 # Install Cython package
