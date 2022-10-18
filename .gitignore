@@ -6,3 +6,6 @@ venv/
 _skbuild/
 fmf2.egg-info/
 __pycache__/
+
+# Ignore large test datasets
+tests/data/mohn_cluster_tribe_20220425.npz
