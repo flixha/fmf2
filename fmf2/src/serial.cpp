@@ -50,49 +50,45 @@ int matched_filter_serial(const float* templates, const float* sum_square_templa
 	for (int i = start_i; i < stop_i; i += step) {
 	    const auto cc_sum_i_offset = i / step;
 #ifdef __AVX512F__
-	    if (__builtin_cpu_supports("avx512f")) {
-		cc_sum[cc_sum_offset + cc_sum_i_offset] =
-		    network_correlation_avx512(
-			templates + network_offset * n_samples_template,
-			sum_square_templates + network_offset,
-			moveouts + network_offset,
-			weights + network_offset,
-			data + i,
-			n_samples_template,
-			n_samples_data,
-			n_stations,
-			n_components,
-			normalize);
-		continue;
-	    }
+	cc_sum[cc_sum_offset + cc_sum_i_offset] =
+	    network_correlation_avx512(
+		templates + network_offset * n_samples_template,
+		sum_square_templates + network_offset,
+		moveouts + network_offset,
+		weights + network_offset,
+		data + i,
+		n_samples_template,
+		n_samples_data,
+		n_stations,
+		n_components,
+		normalize);
+#elif __AVX2__
+	cc_sum[cc_sum_offset + cc_sum_i_offset] =
+	    network_correlation_avx2(
+		templates + network_offset * n_samples_template,
+		sum_square_templates + network_offset,
+		moveouts + network_offset,
+		weights + network_offset,
+		data + i,
+		n_samples_template,
+		n_samples_data,
+		n_stations,
+		n_components,
+		normalize);
+#else
+	cc_sum[cc_sum_offset + cc_sum_i_offset] =
+	    network_correlation(
+		templates + network_offset * n_samples_template,
+		sum_square_templates + network_offset,
+		moveouts + network_offset,
+		weights + network_offset,
+		data + i,
+		n_samples_template,
+		n_samples_data,
+		n_stations,
+		n_components,
+		normalize);
 #endif
-	    if (__builtin_cpu_supports("avx2") && __builtin_cpu_supports("fma")) {
-		cc_sum[cc_sum_offset + cc_sum_i_offset] =
-		    network_correlation_avx2(
-			templates + network_offset * n_samples_template,
-			sum_square_templates + network_offset,
-			moveouts + network_offset,
-			weights + network_offset,
-			data + i,
-			n_samples_template,
-			n_samples_data,
-			n_stations,
-			n_components,
-			normalize);
-	    } else {
-		cc_sum[cc_sum_offset + cc_sum_i_offset] =
-		    network_correlation(
-			templates + network_offset * n_samples_template,
-			sum_square_templates + network_offset,
-			moveouts + network_offset,
-			weights + network_offset,
-			data + i,
-			n_samples_template,
-			n_samples_data,
-			n_stations,
-			n_components,
-			normalize);
-	    }
 	}
     }
     return 0;
@@ -137,6 +133,7 @@ float network_correlation(const float* temp, const float* sum_sq_template,
 
 // Horizontal sum of a vector register
 // https://stackoverflow.com/a/13222410
+#ifdef __AVX2__
 static float sum8(__m256 x) {
     // hiQuad = ( x7, x6, x5, x4 )
     const __m128 hiQuad = _mm256_extractf128_ps(x, 1);
@@ -158,6 +155,7 @@ static float sum8(__m256 x) {
     const __m128 sum = _mm_add_ss(lo, hi);
     return _mm_cvtss_f32(sum);
 }
+#endif
 
 float network_correlation_avx2(const float* temp, const float* sum_sq_template,
 			  const int* template_moveouts, const float* template_weights,
