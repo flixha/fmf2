@@ -51,45 +51,45 @@ int matched_filter_serial(const float* templates, const float* sum_square_templa
 	    const auto cc_sum_i_offset = i / step;
 #ifdef __AVX512F__
 #pragma message "Using AVX512 CPU path"
-	cc_sum[cc_sum_offset + cc_sum_i_offset] =
-	    network_correlation_avx512(
-		templates + network_offset * n_samples_template,
-		sum_square_templates + network_offset,
-		moveouts + network_offset,
-		weights + network_offset,
-		data + i,
-		n_samples_template,
-		n_samples_data,
-		n_stations,
-		n_components,
-		normalize);
-#elif __AVX2__
+		cc_sum[cc_sum_offset + cc_sum_i_offset] =
+		    network_correlation_avx512(
+			templates + network_offset * n_samples_template,
+			sum_square_templates + network_offset,
+			moveouts + network_offset,
+			weights + network_offset,
+			data + i,
+			n_samples_template,
+			n_samples_data,
+			n_stations,
+			n_components,
+			normalize);
+#elif __AVX2__ && __FMA__
 #pragma message "Using AVX2 CPU path"
-	cc_sum[cc_sum_offset + cc_sum_i_offset] =
-	    network_correlation_avx2(
-		templates + network_offset * n_samples_template,
-		sum_square_templates + network_offset,
-		moveouts + network_offset,
-		weights + network_offset,
-		data + i,
-		n_samples_template,
-		n_samples_data,
-		n_stations,
-		n_components,
-		normalize);
+		cc_sum[cc_sum_offset + cc_sum_i_offset] =
+		    network_correlation_avx2(
+			templates + network_offset * n_samples_template,
+			sum_square_templates + network_offset,
+			moveouts + network_offset,
+			weights + network_offset,
+			data + i,
+			n_samples_template,
+			n_samples_data,
+			n_stations,
+			n_components,
+			normalize);
 #else
-	cc_sum[cc_sum_offset + cc_sum_i_offset] =
-	    network_correlation(
-		templates + network_offset * n_samples_template,
-		sum_square_templates + network_offset,
-		moveouts + network_offset,
-		weights + network_offset,
-		data + i,
-		n_samples_template,
-		n_samples_data,
-		n_stations,
-		n_components,
-		normalize);
+		cc_sum[cc_sum_offset + cc_sum_i_offset] =
+		    network_correlation(
+			templates + network_offset * n_samples_template,
+			sum_square_templates + network_offset,
+			moveouts + network_offset,
+			weights + network_offset,
+			data + i,
+			n_samples_template,
+			n_samples_data,
+			n_stations,
+			n_components,
+			normalize);
 #endif
 	}
     }
