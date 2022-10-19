@@ -160,6 +160,7 @@ def matched_filter(templates, moveouts, weights, data, step, arch='cpu',
     cdef float[:,:,:] weights_view = weights
     cdef float[:,:] cc_view = cc_sums
     # Call backend implementation depending on desired architecture
+    arch = arch.strip().lower()
     if arch in ('cpu', 'precise'):
         ret = matched_filter_serial(&temp_view[0, 0, 0, 0], &sq_temp_view[0, 0, 0],
                 &moveouts_view[0, 0, 0], &data_view[0, 0, 0], &weights_view[0, 0, 0],
