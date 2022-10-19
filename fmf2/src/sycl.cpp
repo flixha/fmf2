@@ -18,7 +18,7 @@
 
 #define STABILITY_THRESHOLD 0.000001f
 
-void println(const std::string &txt) { std::cout << txt << std::endl; }
+void println(const std::string &txt) {} // std::cout << txt << std::endl; }
 
 // Helper struct which holds a collection of device pointers, which makes it
 // easier to store a group of pointers in vectors
@@ -99,15 +99,6 @@ int matched_filter_sycl(const float* templates, const float* sum_square_template
 	queues.push_back(sycl::queue{sycl::default_selector{}});
 	std::cerr << "\033[0;33mWARN: Did not find any SYCL enabled GPUs, using default device\033[0m\n";
     }
-    println("------------------------------");
-    println("step               : " + std::to_string(step));
-    println("n_samples_template : " + std::to_string(n_samples_template));
-    println("n_samples_data     : " + std::to_string(n_samples_data));
-    println("n_templates        : " + std::to_string(n_templates));
-    println("n_stations         : " + std::to_string(n_stations));
-    println("n_components       : " + std::to_string(n_components));
-    println("n_corr             : " + std::to_string(n_corr));
-    println("------------------------------");
 
     // Allocate device memory per queue/device
     const size_t network_size = static_cast<size_t>(n_stations * n_components);

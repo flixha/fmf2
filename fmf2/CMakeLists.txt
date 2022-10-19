@@ -19,12 +19,13 @@ endif()
 
 # Add SYCL backend if available compiler is found
 if(HIPSYCL_SYCLCC)
-	find_package(Boost REQUIRED COMPONENTS fiber)
-	find_package(Threads REQUIRED)
-	add_library(sycl src/sycl.cpp)
+	# Build as a shared library so one isn't dependent on SYCL at runtime
+	# to use the CPU backend
+	add_library(sycl SHARED src/sycl.cpp)
 	add_sycl_to_target(TARGET sycl SOURCES src/sycl.cpp)
-	list(APPEND FMF2_LIBS sycl Boost::fiber Threads::Threads)
+	list(APPEND FMF2_LIBS sycl)
 	set(CYTHON_FLAGS "${CYTHON_FLAGS} -E FMF2_SYCL=True")
+	install(TARGETS sycl LIBRARY DESTINATION fmf2)
 else()
 	set(CYTHON_FLAGS "${CYTHON_FLAGS} -E FMF2_SYCL=False")
 endif()
@@ -35,6 +36,12 @@ add_library(_fmf2 MODULE ${_fmf2})
 # Link against internal libraries
 target_link_libraries(_fmf2 ${FMF2_LIBS})
 python_extension_module(_fmf2)
+
+# Need to manually set the RPATH for the Python library so that it can find the
+# SYCL library above in a relative position next to itself
+set_target_properties(_fmf2 PROPERTIES
+	INSTALL_RPATH_USE_LINK_PATH TRUE
+	INSTALL_RPATH "${PYTHON_SITE_PACKAGES_DIR}/fmf2")
 
 # Install Cython package
 install(TARGETS _fmf2 LIBRARY DESTINATION fmf2)

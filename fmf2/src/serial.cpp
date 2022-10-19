@@ -50,6 +50,7 @@ int matched_filter_serial(const float* templates, const float* sum_square_templa
 	for (int i = start_i; i < stop_i; i += step) {
 	    const auto cc_sum_i_offset = i / step;
 #ifdef __AVX512F__
+#pragma message "Using AVX512 CPU path"
 	cc_sum[cc_sum_offset + cc_sum_i_offset] =
 	    network_correlation_avx512(
 		templates + network_offset * n_samples_template,
@@ -63,6 +64,7 @@ int matched_filter_serial(const float* templates, const float* sum_square_templa
 		n_components,
 		normalize);
 #elif __AVX2__
+#pragma message "Using AVX2 CPU path"
 	cc_sum[cc_sum_offset + cc_sum_i_offset] =
 	    network_correlation_avx2(
 		templates + network_offset * n_samples_template,
