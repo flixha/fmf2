@@ -1,5 +1,6 @@
 import numpy as np
 cimport numpy as np
+import sys
 
 cdef extern from "fmf2.hpp":
     int matched_filter_serial(const float* templates, const float* sum_square_templates, const int* moveouts, const float* data,
@@ -183,5 +184,20 @@ def matched_filter(templates, moveouts, weights, data, step, arch='cpu',
         else:
             raise RuntimeError("FMF2 backend error: %d" % ret)
     if check_zeros:
-        raise NotImplementedError("'check_zero' not yet implemented")
+        if isinstance(check_zeros, str):
+            check_zeros = check_zeros.strip().lower()
+        max_col = int(n_corr - moveouts.max() / step)
+        non_zero = np.count_nonzero(cc_sums[:, :max_col], axis=1)
+        zeros = [size - zeros for (size, zeros) in zip(cc_sums.shape, non_zero)]
+        if check_zeros == 'first':
+            if zeros[0] >= min(10, cc_sums.shape[1]):
+                print("Detected too many zeros in first row of correlation computation."
+                      " Can be caused by zeros in data or too low amplitudes (try to increase gain).",
+                      file=sys.stderr)
+        else:
+            for row in range(cc_sums.shape[0]):
+                if zeros[row] >= min(10, cc_sums.shape[row]):
+                    print("Detected too many zeros in {:d}-th row of correlation computation."
+                          " Can be caused by zeros in data or too low amplitudes (try to increase gain)."
+                          .format(row), file=sys.stderr)
     return cc_sums

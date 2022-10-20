@@ -41,7 +41,7 @@ def test_wrong_arch(zero_data):
 def test_capitalized_arch(zero_data):
     """Check that wrong capitalization doesn't affect 'arch' parameter"""
     (template, moveouts, weights, data) = zero_data
-    # The following calls must not raise the 
+    # The following calls must not raise "unknown arch" error
     fmf2.matched_filter(template, moveouts, weights, data, 1, arch='CPU')
     fmf2.matched_filter(template, moveouts, weights, data, 1, arch='CPu')
     fmf2.matched_filter(template, moveouts, weights, data, 1, arch='cPu')
@@ -53,3 +53,28 @@ def test_spaced_arch(zero_data):
     # Add in 'accidental' spaces
     fmf2.matched_filter(template, moveouts, weights, data, 1, arch='cpu ')
     fmf2.matched_filter(template, moveouts, weights, data, 1, arch=' cpu ')
+
+
+def test_missing_input(zero_data):
+    """Check that input handling is done correctly"""
+    (template, _, _, _) = zero_data
+    # Test no arguments
+    with pytest.raises(TypeError):
+        fmf2.matched_filter()
+    # Test one argument
+    with pytest.raises(TypeError):
+        fmf2.matched_filter(template)
+
+
+def test_check_zeros(zero_data, capsys):
+    """Check that 'check_zeros' works as expected"""
+    (template, moveouts, weights, data) = zero_data
+    fmf2.matched_filter(template, moveouts, weights, data, 1, arch='cpu', check_zeros='first')
+    captured = capsys.readouterr()
+    assert "Detected too many zeros in first row of correlation computation" in captured.err
+    fmf2.matched_filter(template, moveouts, weights, data, 1, arch='cpu', check_zeros='all')
+    captured = capsys.readouterr()
+    assert "Detected too many zeros in 0-th row of correlation computation" in captured.err
+    fmf2.matched_filter(template, moveouts, weights, data, 1, arch='cpu', check_zeros=True)
+    captured = capsys.readouterr()
+    assert "Detected too many zeros in 0-th row of correlation computation" in captured.err
