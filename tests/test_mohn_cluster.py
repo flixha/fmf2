@@ -17,16 +17,19 @@ import numpy as np
 import pathlib
 import pytest
 
+# Larger test data sample which takes anything from a minute to seconds to process depending on device
+TEST_DATA = pathlib.Path(__file__).parent / 'data' / 'mohn_cluster_tribe_20220425.npz'
+
 
 @pytest.fixture
 def mohn_data():
     """Helper method to load data"""
-    fil = pathlib.Path(__file__).parent / 'data' / 'mohn_cluster_tribe_20220425.npz'
-    data = np.load(fil)
+    data = np.load(TEST_DATA)
     return data
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(not TEST_DATA.exists(), reason="Mohn cluster data missing")
 @pytest.mark.benchmark(group='mohn_cluster')
 @pytest.mark.parametrize('impl', ['precise', 'sycl'])
 def test_bench(mohn_data, impl, benchmark):
