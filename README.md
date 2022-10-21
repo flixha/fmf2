@@ -1,4 +1,5 @@
 # FMF2 - seismic matched-filter search
+[![Build status](https://github.com/nordmoen/fmf2/actions/workflows/python-package.yml/badge.svg)](https://github.com/nordmoen/fmf2/actions/workflows/python-package.yml)
 
 `fmf2` is an efficient seismic matched-filter search, with inspiration from
 [`fast_matched_filter`](https://github.com/beridel/fast_matched_filter). The
@@ -12,7 +13,8 @@ its GPU backend and a slightly updated build process based around
 To build this library one needs a recent Python version, a C compiler and
 CMake. Building is taken care of by Python, which eventually will call out to
 CMake. It is recommended to create a virtual environment before installing the
-library.
+library. For the GPU backend hipSYCL is required, but this will be dynamically
+detected at compile time and enabled/disabled based on availability.
 
 ```bash
 # Optional:
