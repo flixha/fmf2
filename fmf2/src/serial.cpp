@@ -174,6 +174,14 @@ float network_correlation_avx2(const float *temp, const float *sum_sq_template,
       const int data_offset =
           comp_offset * n_samples_data + template_moveouts[comp_offset];
 
+#ifdef FMF2_CPU_SKIP
+      // If the weight is less than stability threshold we assert that the
+      // weight is too small and we can skip the current iteration
+      if (std::fabs(template_weights[comp_offset]) < STABILITY_THRESHOLD) {
+        continue;
+      }
+#endif
+      
       __m256 mean = _mm256_setzero_ps();
       __m256 numerator = _mm256_setzero_ps();
       __m256 sum_square = _mm256_setzero_ps();
@@ -244,6 +252,14 @@ float network_correlation_avx512(
       const int temp_offset = comp_offset * n_samples_template;
       const int data_offset =
           comp_offset * n_samples_data + template_moveouts[comp_offset];
+      
+#ifdef FMF2_CPU_SKIP
+      // If the weight is less than stability threshold we assert that the
+      // weight is too small and we can skip the current iteration
+      if (std::fabs(template_weights[comp_offset]) < STABILITY_THRESHOLD) {
+        continue;
+      }
+#endif
 
       __m512 mean = _mm512_setzero_ps();
       __m512 numerator = _mm512_setzero_ps();
@@ -252,6 +268,9 @@ float network_correlation_avx512(
 
       if (normalize) {
         for (int i = 0; (i + 16) < n_samples_template; i += 16) {
+          // | x0 | x1 | ... | x15 |
+          // | y0 | y1 | ... | y15 |
+          // | x0 + y0 | ... | x15 + y15 |
           mean += _mm512_loadu_ps(&data[data_offset + i]);
         }
         if (left != 0) {

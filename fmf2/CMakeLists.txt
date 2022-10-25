@@ -4,6 +4,12 @@ include_directories(${Python3_NumPy_INCLUDE_DIRS} SYSTEM)
 # Add NumPy to required libraries to link against
 list(APPEND FMF2_LIBS Python3::NumPy)
 
+# If the enable skip option is ON then we define an appropriate macro to enable
+if (ENABLE_SKIP)
+	message(STATUS "Enabling CPU skip on sparse weights")
+	add_compile_definitions(FMF2_CPU_SKIP)
+endif()
+
 # Include the "serial" implementation which should always be available
 add_library(serial src/serial.cpp)
 # Compile the serial library with native instructions
