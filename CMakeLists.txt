@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.18)
 
-set(FMF2_VERSION_MAJOR 0)
-set(FMF2_VERSION_MINOR 1)
-set(FMF2_VERSION_PATCH 0)
-project(fmf2 VERSION ${FMF2_VERSION_MAJOR}.${FMF2_VERSION_MINOR}.${FMF2_VERSION_PATCH})
+# Extract version information from Python library
+set(VERSION_REGEX "__version__[ \t]+=[ \t]+\'(.+)\'")
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/fmf2/__init__.py" VERSION_STRING REGEX ${VERSION_REGEX})
+string(REGEX REPLACE ${VERSION_REGEX} "\\1" VERSION_STRING "${VERSION_STRING}")
+
+project(fmf2 VERSION ${VERSION_STRING})
 
 # Set minimum required C++ version
 set(CMAKE_CXX_STANDARD 17 CACHE STRING "The C++ standard to use")
