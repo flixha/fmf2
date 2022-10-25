@@ -1,5 +1,5 @@
 # FMF2 - seismic matched-filter search
-[![Build status](https://github.com/nordmoen/fmf2/actions/workflows/python-package.yml/badge.svg)](https://github.com/nordmoen/fmf2/actions/workflows/python-package.yml)
+[![Build library](https://github.com/nordmoen/fmf2/actions/workflows/python-package.yml/badge.svg)](https://github.com/nordmoen/fmf2/actions/workflows/python-package.yml)
 
 `fmf2` is an efficient seismic matched-filter search, with inspiration from
 [`fast_matched_filter`](https://github.com/beridel/fast_matched_filter). The
@@ -27,6 +27,15 @@ python3 -m pip -v install .
 
 If you are rebuilding this library and it fails without an apparent cause, a
 trick can be to remove the temporary `_skbuild/` directory.
+
+### Build options
+
+To change the build options when building with Python prepend the build command
+with `CMAKE_ARGS="-DOPTION=..."` to inform CMake.
+
+```bash
+CMAKE_ARGS="-DENABLE_SKIP=OFF" python3 -m pip -v install .
+```
 
 ### Testing
 
