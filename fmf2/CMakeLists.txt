@@ -5,9 +5,15 @@ include_directories(${Python3_NumPy_INCLUDE_DIRS} SYSTEM)
 list(APPEND FMF2_LIBS Python3::NumPy)
 
 # If the enable skip option is ON then we define an appropriate macro to enable
-if (ENABLE_SKIP)
+if (CPU_SKIP)
 	message(STATUS "Enabling CPU skip on sparse weights")
 	add_compile_definitions(FMF2_CPU_SKIP)
+endif()
+
+# If the AVX512 option is OFF we disable implicit support here
+if (NOT AVX512)
+	message(STATUS "Disabling implicit AVX512 support")
+	add_compile_options("-mno-avx512f")
 endif()
 
 # Include the "serial" implementation which should always be available
@@ -16,7 +22,7 @@ add_library(serial src/serial.cpp)
 target_compile_options(serial PRIVATE "-march=native")
 list(APPEND FMF2_LIBS serial)
 
-# If we have OpenMP support in the compiler we add ensure our "serial" code is
+# If we have OpenMP support in the compiler we ensure our "serial" code is
 # compiled with OpenMP support
 if(OpenMP_CXX_FOUND)
 	target_compile_options(serial PRIVATE ${OpenMP_CXX_FLAGS})

@@ -35,6 +35,7 @@ find_package(hipSYCL CONFIG)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Add FMF2 specific options
-option(ENABLE_SKIP "Allow CPU code paths to skip iteration if weight is too small" ON)
+option(CPU_SKIP "Allow CPU code paths to skip iteration if weight is too small" ON)
+option(AVX512 "Compile with AVX512 support" ON)
 
 add_subdirectory(fmf2)

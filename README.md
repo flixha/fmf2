@@ -34,7 +34,7 @@ To change the build options when building with Python prepend the build command
 with `CMAKE_ARGS="-DOPTION=..."` to inform CMake.
 
 ```bash
-CMAKE_ARGS="-DENABLE_SKIP=OFF" python3 -m pip -v install .
+CMAKE_ARGS="-DCPU_SKIP=OFF" python3 -m pip -v install .
 ```
 
 ### Testing
