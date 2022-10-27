@@ -25,8 +25,9 @@ IF FMF2_SYCL:
     AVAILABLE_BACKENDS.append('sycl')
     AVAILABLE_BACKENDS.append('gpu')
 
+
 def matched_filter(templates, moveouts, weights, data, step, arch='cpu',
-        check_zeros=None, normalize='short'):
+                   check_zeros=None, normalize='short'):
     """Compute the correlation coefficients between `templates` and `data`.
 
     Scan the continuous waveforms `data` with the template waveforms
@@ -38,7 +39,7 @@ def matched_filter(templates, moveouts, weights, data, step, arch='cpu',
     Parameters
     -----------
     templates: numpy.ndarray
-        4D (n_templates, n_stations, n_channels, n_tp_samples) or 3D 
+        4D (n_templates, n_stations, n_channels, n_tp_samples) or 3D
         (n_templates, n_traces, n_tp_samples) `numpy.ndarray` with the
         template waveforms.
     moveouts: numpy.ndarray, int
@@ -62,10 +63,10 @@ def matched_filter(templates, moveouts, weights, data, step, arch='cpu',
     check_zeros: string, optional
         Controls the verbosity level at the end of this routine when
         checking zeros in the time series of correlation coefficients (CCs).
-        - False: No messages.  
-        - `'first'`: Check zeros on the first template's CCs (recommended).  
+        - False: No messages.
+        - `'first'`: Check zeros on the first template's CCs (recommended).
         - `'all'`: Check zeros on each template's CCs. It can be useful for
-        troubleshooting but in general this would print too many messages.  
+        troubleshooting but in general this would print too many messages.
         Default is `'first'`.
     normalize: string, optional
         Either "short" or "full" - full is slower but removes the mean of the
@@ -86,11 +87,11 @@ def matched_filter(templates, moveouts, weights, data, step, arch='cpu',
     if templates.ndim > data.ndim:
         n_templates = int(templates.shape[0])
 
-        assert templates.shape[1] == data.shape[0] # check stations
+        assert templates.shape[1] == data.shape[0]  # check stations
         n_stations = int(templates.shape[1])
 
         if templates.ndim == 4:
-            assert templates.shape[2] == data.shape[1] # check components
+            assert templates.shape[2] == data.shape[1]  # check components
             n_components = int(templates.shape[2])
         elif templates.ndim == 3:
             n_components = int(1)
@@ -99,12 +100,12 @@ def matched_filter(templates, moveouts, weights, data, step, arch='cpu',
 
     elif templates.ndim == data.ndim:
         n_templates = int(1)
-        
-        assert templates.shape[0] == data.shape[0] # check stations
+
+        assert templates.shape[0] == data.shape[0]  # check stations
         n_stations = int(templates.shape[0])
 
         if templates.ndim == 3:
-            assert templates.shape[1] == data.shape[1] # check components
+            assert templates.shape[1] == data.shape[1]  # check components
             n_components = int(templates.shape[1])
         elif templates.ndim == 2:
             n_components = int(1)
@@ -116,8 +117,8 @@ def matched_filter(templates, moveouts, weights, data, step, arch='cpu',
 
     if impossible_dimensions:
         raise ValueError("Template (shape: %s) and data (shape: %s) dimensions are not compatible!" %
-                (templates.shape, data.shape))
-   
+                         (templates.shape, data.shape))
+
     n_samples_template = templates.shape[-1]
     if templates.shape != (n_templates, n_stations, n_components, n_samples_template):
         templates = templates.reshape(n_templates, n_stations, n_components, n_samples_template)
@@ -154,25 +155,25 @@ def matched_filter(templates, moveouts, weights, data, step, arch='cpu',
     weights = np.require(weights, np.float32, requirements=NP_FIELD_REQUIREMENTS)
     cc_sums = np.require(cc_sums, np.float32, requirements=NP_FIELD_REQUIREMENTS)
     # Create memory views of input data so that we can pass along to C/C++ methods imported at the top
-    cdef float[:,:,:,:] temp_view = templates
-    cdef float[:,:,:] sq_temp_view = sum_square_templates
-    cdef int[:,:,:] moveouts_view = moveouts
-    cdef float[:,:,:] data_view = data
-    cdef float[:,:,:] weights_view = weights
-    cdef float[:,:] cc_view = cc_sums
+    cdef float[:, :, :, :] temp_view = templates
+    cdef float[:, :, :] sq_temp_view = sum_square_templates
+    cdef int[:, :, :] moveouts_view = moveouts
+    cdef float[:, :, :] data_view = data
+    cdef float[:, :, :] weights_view = weights
+    cdef float[:, :] cc_view = cc_sums
     # Call backend implementation depending on desired architecture
     arch = arch.strip().lower()
     if arch in ('cpu', 'precise'):
         ret = matched_filter_serial(&temp_view[0, 0, 0, 0], &sq_temp_view[0, 0, 0],
-                &moveouts_view[0, 0, 0], &data_view[0, 0, 0], &weights_view[0, 0, 0],
-                step, n_samples_template, n_samples_data, n_templates,
-                n_stations, n_components, n_corr, norm, &cc_view[0, 0])
+                                    &moveouts_view[0, 0, 0], &data_view[0, 0, 0], &weights_view[0, 0, 0],
+                                    step, n_samples_template, n_samples_data, n_templates,
+                                    n_stations, n_components, n_corr, norm, &cc_view[0, 0])
     elif arch in ('gpu', 'sycl'):
         IF FMF2_SYCL:
             ret = matched_filter_sycl(&temp_view[0, 0, 0, 0], &sq_temp_view[0, 0, 0],
-                    &moveouts_view[0, 0, 0], &data_view[0, 0, 0], &weights_view[0, 0, 0],
-                    step, n_samples_template, n_samples_data, n_templates,
-                    n_stations, n_components, n_corr, norm, &cc_view[0, 0])
+                                      &moveouts_view[0, 0, 0], &data_view[0, 0, 0], &weights_view[0, 0, 0],
+                                      step, n_samples_template, n_samples_data, n_templates,
+                                      n_stations, n_components, n_corr, norm, &cc_view[0, 0])
         ELSE:
             raise RuntimeError("FMF2 library not compiled with SYCL backend!")
     else:
@@ -184,20 +185,22 @@ def matched_filter(templates, moveouts, weights, data, step, arch='cpu',
         else:
             raise RuntimeError("FMF2 backend error: %d" % ret)
     if check_zeros:
+        max_zeros = 10
         if isinstance(check_zeros, str):
             check_zeros = check_zeros.strip().lower()
+        if isinstance(check_zeros, int):
+            max_zeros = check_zeros
         max_col = int(n_corr - moveouts.max() / step)
-        non_zero = np.count_nonzero(cc_sums[:, :max_col], axis=1)
-        zeros = [size - zeros for (size, zeros) in zip(cc_sums.shape, non_zero)]
+        zeros = np.count_nonzero(cc_sums[:, :max_col] == 0., axis=1)
         if check_zeros == 'first':
-            if zeros[0] >= min(10, cc_sums.shape[1]):
+            if zeros[0] >= min(max_zeros, cc_sums.shape[1]):
                 print("Detected too many zeros in first row of correlation computation."
                       " Can be caused by zeros in data or too low amplitudes (try to increase gain).",
                       file=sys.stderr)
         else:
-            for row in range(cc_sums.shape[0]):
-                if zeros[row] >= min(10, cc_sums.shape[row]):
+            for i, row in enumerate(zeros):
+                if row >= min(max_zeros, cc_sums.shape[1]):
                     print("Detected too many zeros in {:d}-th row of correlation computation."
                           " Can be caused by zeros in data or too low amplitudes (try to increase gain)."
-                          .format(row), file=sys.stderr)
+                          .format(i), file=sys.stderr)
     return cc_sums
