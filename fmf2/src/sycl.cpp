@@ -177,8 +177,8 @@ int matched_filter_sycl(const float *templates,
     // following value has been optimized for large HPC GPUs, one can try
     // to reduce this and see if performance improves on your current
     // device if performance is lower than expected
-    const size_t local_size =
-        1024; // Fixed work-group size, ensure it is a multiple of 32
+    const size_t max_local = Q.get_device().get_info<sycl::info::device::max_work_group_size>();
+    const size_t local_size = max_local; // Fixed work-group size, ensure it is a multiple of 32
     // Since we need the global range to be a multiple of the work-group
     // size we adjust the global work group size here based on the actual
     // ranges calculated above
