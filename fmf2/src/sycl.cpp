@@ -209,8 +209,8 @@ int matched_filter_sycl(const float *templates,
             const size_t local_index = idx.get_local_id()[0];
             const size_t local_size = idx.get_local_range()[0];
             for (size_t i = local_index; i < network_size; i += local_size) {
-              local_sum_sq[i] = device_mem.sum_sq_templates[i];
               local_weights[i] = device_mem.weights[i];
+              local_sum_sq[i] = device_mem.sum_sq_templates[i];
               local_moveouts[i] = device_mem.moveouts[i];
             }
             // Wait for all work-items to update shared local memory
@@ -219,76 +219,80 @@ int matched_filter_sycl(const float *templates,
             float cc_sum = 0.0f;
             for (int station = 0; station < n_stations; station++) {
               for (int comp = 0; comp < n_components; comp++) {
-                const int comp_offset = station * n_components + comp;
-                const int temp_offset = comp_offset * n_samples_template;
-                const int data_offset =
-                    comp_offset * n_samples_data + local_moveouts[comp_offset];
+                // Skip all correlations if weight for trace is Zero
+                if (local_weights[station * n_components + comp] != 0.){
+                  const int comp_offset = station * n_components + comp;
+                  const int temp_offset = comp_offset * n_samples_template;
+                  const int data_offset =
+                      comp_offset * n_samples_data + local_moveouts[comp_offset];
+                  // We need to synchronize with the previous iteration
+                  // so that no in-use local memory is overwritten
+                  idx.barrier(sycl::access::fence_space::local_space);
+                  for (int i = local_index; i < n_samples_template;
+                      i += local_size) {
+                    local_templ[i] = device_mem.templates[temp_offset + i];
+                  }
+                  for (int i = 0;
+                      i + local_index < n_samples_template + local_size;
+                      i += local_size) {
+                    local_data[local_index + i] =
+                        device_mem.data[index + data_offset + i];
+                  }
+                  idx.barrier(sycl::access::fence_space::local_space);
 
-                // We need to synchronize with the previous iteration
-                // so that no in-use local memory is overwritten
-                idx.barrier(sycl::access::fence_space::local_space);
-                for (int i = local_index; i < n_samples_template;
-                     i += local_size) {
-                  local_templ[i] = device_mem.templates[temp_offset + i];
-                }
-                for (int i = 0;
-                     i + local_index < n_samples_template + local_size;
-                     i += local_size) {
-                  local_data[local_index + i] =
-                      device_mem.data[index + data_offset + i];
-                }
-                idx.barrier(sycl::access::fence_space::local_space);
+                // Skip all correlations if weight for trace is Zero
+                // if (local_weights[station * n_components + comp] != 0.){
+                  float mean = 0.0f;
+                  sycl::float2 numerator{0.0f, 0.0f};
+                  sycl::float2 sum_square{0.0f, 0.0f};
 
-                float mean = 0.0f;
-                sycl::float2 numerator{0.0f, 0.0f};
-                sycl::float2 sum_square{0.0f, 0.0f};
-
-                if (normalize) {
-                  sycl::float2 _mean{0.0f, 0.0f};
+                  if (normalize) {
+                    sycl::float2 _mean{0.0f, 0.0f};
+                    for (int i = 0; (i + 1) < n_samples_template; i += 2) {
+                      _mean += sycl::float2{local_data[local_index + i],
+                                            local_data[local_index + i + 1]};
+                    }
+                    // If n_samples_template is odd we won't process the
+                    // last element in the above loop, to include
+                    // that we process the last element separately below
+                    if (n_samples_template % 2 != 0) {
+                      _mean[0] +=
+                          local_data[local_index + n_samples_template - 1];
+                    }
+                    const float nstf = static_cast<float>(n_samples_template);
+                    mean = (_mean[0] + _mean[1]) / nstf;
+                  }
                   for (int i = 0; (i + 1) < n_samples_template; i += 2) {
-                    _mean += sycl::float2{local_data[local_index + i],
-                                          local_data[local_index + i + 1]};
+                    const auto sample =
+                        sycl::float2{local_data[local_index + i] - mean,
+                                    local_data[local_index + i + 1] - mean};
+                    const auto templ =
+                        sycl::float2{local_templ[i], local_templ[i + 1]};
+                    // Using MAD instead of FMA for speed, exchange if more
+                    // accuracy is needed
+                    numerator = sycl::fma(templ, sample, numerator);
+                    sum_square = sycl::fma(sample, sample, sum_square);
                   }
                   // If n_samples_template is odd we won't process the
                   // last element in the above loop, to include
                   // that we process the last element separately below
                   if (n_samples_template % 2 != 0) {
-                    _mean[0] +=
-                        local_data[local_index + n_samples_template - 1];
+                    const float sample =
+                        local_data[local_index + n_samples_template - 1] - mean;
+                    const float temple = local_templ[n_samples_template - 1];
+                    numerator[0] = sycl::fma(temple, sample, numerator[0]);
+                    sum_square[0] = sycl::fma(sample, sample, sum_square[0]);
                   }
-                  const float nstf = static_cast<float>(n_samples_template);
-                  mean = (_mean[0] + _mean[1]) / nstf;
-                }
-                for (int i = 0; (i + 1) < n_samples_template; i += 2) {
-                  const auto sample =
-                      sycl::float2{local_data[local_index + i] - mean,
-                                   local_data[local_index + i + 1] - mean};
-                  const auto templ =
-                      sycl::float2{local_templ[i], local_templ[i + 1]};
-                  // Using MAD instead of FMA for speed, exchange if more
-                  // accuracy is needed
-                  numerator = sycl::fma(templ, sample, numerator);
-                  sum_square = sycl::fma(sample, sample, sum_square);
-                }
-                // If n_samples_template is odd we won't process the
-                // last element in the above loop, to include
-                // that we process the last element separately below
-                if (n_samples_template % 2 != 0) {
-                  const float sample =
-                      local_data[local_index + n_samples_template - 1] - mean;
-                  const float temple = local_templ[n_samples_template - 1];
-                  numerator[0] = sycl::fma(temple, sample, numerator[0]);
-                  sum_square[0] = sycl::fma(sample, sample, sum_square[0]);
-                }
-                float denominator =
-                    local_sum_sq[comp_offset] * (sum_square[0] + sum_square[1]);
-                if (denominator > STABILITY_THRESHOLD) {
-                  denominator = sycl::rsqrt(denominator);
-                  // Using MAD instead of FMA for speed, exchange if more
-                  // accuracy is needed
-                  const float numer = numerator[0] + numerator[1];
-                  cc_sum = sycl::mad((numer * denominator),
-                                     local_weights[comp_offset], cc_sum);
+                  float denominator =
+                      local_sum_sq[comp_offset] * (sum_square[0] + sum_square[1]);
+                  if (denominator > STABILITY_THRESHOLD) {
+                    denominator = sycl::rsqrt(denominator);
+                    // Using MAD instead of FMA for speed, exchange if more
+                    // accuracy is needed
+                    const float numer = numerator[0] + numerator[1];
+                    cc_sum = sycl::mad((numer * denominator),
+                                      local_weights[comp_offset], cc_sum);
+                  }
                 }
               }
             }
