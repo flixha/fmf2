@@ -46,7 +46,7 @@ enumerate_devices(const int n_samples_template, const int n_samples_data,
        network_size * n_samples_data +     // Storage for 'data'
        network_size +                      // Storage for 'weights'
        network_size +                      // Storage for 'moveouts'
-       n_corr * n_templates);              // Approximate storage for 'cc_sum'
+       long(n_corr) * long(n_templates));              // Approximate storage for 'cc_sum'
   // Required size for local memory arrays
   const size_t local_memory =
       sizeof(float) * network_size * 2 + sizeof(int) * network_size +
@@ -119,7 +119,7 @@ int matched_filter_sycl(const float *templates,
         sycl::malloc_device<float>(network_size * n_samples_data, Q),
         sycl::malloc_device<float>(network_size, Q),
         sycl::malloc_device<int>(network_size, Q),
-        sycl::malloc_device<float>(static_cast<size_t>(n_corr * n_templates),
+        sycl::malloc_device<float>(static_cast<size_t>(long(n_corr) * long(n_templates)),
                                    Q),
     });
     // 'data' never changes so we upload it right away
@@ -149,7 +149,7 @@ int matched_filter_sycl(const float *templates,
     auto device_mem = device_data[queue_index];
 
     const size_t network_offset = t * network_size;
-    const size_t cc_sum_offset = t * n_corr;
+    const size_t cc_sum_offset = long(t) * long(n_corr);
 
     int min_moveout = 0;
     int max_moveout = 0;
@@ -307,7 +307,7 @@ int matched_filter_sycl(const float *templates,
     const auto queue_index = t % queues.size();
     auto Q = queues[queue_index];
     auto device_mem = device_data[queue_index];
-    const size_t cc_sum_offset = t * n_corr;
+    const size_t cc_sum_offset = long(t) * long(n_corr);
     const size_t network_offset = t * network_size;
     int min_moveout = 0;
     int max_moveout = 0;
