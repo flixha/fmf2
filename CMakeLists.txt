@@ -36,6 +36,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Add FMF2 specific options
 option(CPU_SKIP "Allow CPU code paths to skip iteration if weight is too small" ON)
+option(GPU_SKIP "Allow GPU code paths to skip iteration if weight is too small" OFF)
 option(AVX512 "Compile with AVX512 support" ON)
 
 add_subdirectory(fmf2)

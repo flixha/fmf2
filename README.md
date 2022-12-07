@@ -37,6 +37,15 @@ with `CMAKE_ARGS="-DOPTION=..."` to inform CMake.
 CMAKE_ARGS="-DCPU_SKIP=OFF" python3 -m pip -v install .
 ```
 
+When the weights matrix is very sparse (i.e., many weights set to zero, e.g., due
+to very heterogeneous station configurations for each template), then the total
+runtime may be reduced by skipping correlations for zero-weights even on the GPU.
+But skipping traces may degrade performance due to worse cache locality, so you
+should test the performance with and without skipping.
+```bash
+CMAKE_ARGS="-DGPU_SKIP=ON" python3 -m pip -v install .
+```
+
 ### Testing
 
 To test the installation one can use `pytest`:

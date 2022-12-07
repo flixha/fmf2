@@ -4,10 +4,16 @@ include_directories(${Python3_NumPy_INCLUDE_DIRS} SYSTEM)
 # Add NumPy to required libraries to link against
 list(APPEND FMF2_LIBS Python3::NumPy)
 
-# If the enable skip option is ON then we define an appropriate macro to enable
+# If the enable CPU skip option is ON then we define an appropriate macro to enable
 if (CPU_SKIP)
 	message(STATUS "Enabling CPU skip on sparse weights")
 	add_compile_definitions(FMF2_CPU_SKIP)
+endif()
+
+# If the enableGCPU skip option is ON then we define an appropriate macro to enable
+if (GPU_SKIP)
+        message(STATUS "Enabling GPU skip on sparse weights")
+        add_compile_definitions(FMF2_GPU_SKIP)
 endif()
 
 # If the AVX512 option is OFF we disable implicit support here
