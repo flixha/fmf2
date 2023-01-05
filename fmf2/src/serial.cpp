@@ -38,7 +38,7 @@ int matched_filter_serial(
 
   for (int t = 0; t < n_templates; ++t) {
     const size_t network_offset = t * network_size;
-    const size_t cc_sum_offset = t * n_corr;
+    const size_t cc_sum_offset = long(t) * long(n_corr);
 
     int min_moveout = 0;
     int max_moveout = 0;
